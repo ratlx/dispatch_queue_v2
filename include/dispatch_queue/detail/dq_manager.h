@@ -39,7 +39,7 @@ class DrainerState {
     auto state = state_.load(std::memory_order_acquire);
     while (!IsSwitchOn(state) && GetNumTasks(state) != 0) {
       if (state_.compare_exchange_weak(state, state | kSwitchBit,
-                                       std::memory_order_relaxed,
+                                       std::memory_order_acquire,
                                        std::memory_order_acquire)) {
         return {state, true};
       }
@@ -134,7 +134,7 @@ class ExecutorState {
         new_state |= kDrainerMask;
       }
       if (state_.compare_exchange_weak(state, new_state,
-                                       std::memory_order_relaxed,
+                                       std::memory_order_acquire,
                                        std::memory_order_acquire)) {
         return {state, satisfy};
       }
