@@ -13,7 +13,7 @@ namespace Rat {
 namespace detail {
 
 template <typename Value>
-struct Result {
+struct ResultBase {
   Value value;
   bool success;
 };
@@ -21,7 +21,7 @@ struct Result {
 class DrainerState {
  public:
   using State = int32_t;
-  using Result = Result<State>;
+  using Result = ResultBase<State>;
 
   DrainerState() noexcept = default;
 
@@ -83,7 +83,7 @@ class DrainerState {
 class ExecutorState {
  public:
   using State = NumExecutorsType;
-  using Result = Result<State>;
+  using Result = ResultBase<State>;
 
   ExecutorState() noexcept = default;
 
@@ -186,7 +186,7 @@ class DQManager {
   ~DQManager() noexcept = default;
 
  public:
-  using Result = Result<ID>;
+  using Result = ResultBase<ID>;
 
   DQManager(const DQManager&) = delete;
   DQManager& operator=(const DQManager&) = delete;

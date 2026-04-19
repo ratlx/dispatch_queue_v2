@@ -19,8 +19,8 @@ class DQBase : public std::enable_shared_from_this<DQBase<Executor>> {
     auto res = detail::DQManager::Instance().Register();
     if (!res.success) {
       throw std::runtime_error(
-          std::format("Number of created dispatch queues exceeds maximum ({})",
-                      kMaxNumQueues));
+          "Number of created dispatch queues exceeds maximum (" +
+          std::to_string(kMaxNumQueues) + ")");
     }
 
     id_ = res.value;

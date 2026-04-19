@@ -1,5 +1,4 @@
 #include <atomic>
-#include <format>
 #include <iostream>
 #include <semaphore>
 
@@ -36,6 +35,6 @@ int main() {
   }
 
   sem.acquire();
-  std::cout << std::format("cnt1: {}, cnt2: {}\n",
-                           cnt1.load(std::memory_order_relaxed), cnt2);
+  std::cout << "cnt1: " << cnt1.load(std::memory_order_relaxed)
+            << ", cnt2: " << cnt2 << "\n";
 }
