@@ -27,9 +27,7 @@ class DQBase : public std::enable_shared_from_this<DQBase<Executor>> {
     cb_ = &DQManager::Instance().GetControlBlock(id_);
   }
 
-  ~DQBase() {
-    DQManager::Instance().Deregister(id_);
-  }
+  ~DQBase() { DQManager::Instance().Deregister(id_); }
 
   void Sync(Func func, bool is_barrier = false) {
     is_barrier |= is_serial_;

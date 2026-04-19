@@ -29,9 +29,7 @@ struct ID {
   UID uid;
   QIndex qidx;
 
-  bool operator==(const ID& other) const noexcept {
-    return uid == other.uid;
-  }
+  bool operator==(const ID& other) const noexcept { return uid == other.uid; }
 };
 
 }  // namespace detail

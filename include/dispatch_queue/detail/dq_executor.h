@@ -76,11 +76,6 @@ class DQExecutor {
 
     if (auto queue = GetQueue(id)) {
       while (true) {
-        // leave if all the executors are still working on the same queue.
-        if (executor_state.TryDrainerLeave().success) {
-          return;
-        }
-
         if (auto task_ptr = queue->task_queue_.try_peek()) {
           if (task_ptr->IsBarrier()) {
             auto state = executor_state.SetBarrier();
@@ -124,7 +119,17 @@ class DQExecutor {
               // set back the state
               executor_state.ExecutorEnter();
             }
+            // try to be drainer again if executor exists
+          } else if (executor_state.TryDrainerEnter().success) {
+            continue;
+          } else {
+            return;
           }
+        }
+
+        // leave if the number of executo  rs reach kNumExecutors
+        if (executor_state.TryDrainerLeave().success) {
+          return;
         }
       }
     } else {

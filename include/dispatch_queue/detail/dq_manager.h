@@ -3,8 +3,8 @@
 #include <array>
 #include <atomic>
 #include <memory>
-#include <queue>
 #include <mutex>
+#include <queue>
 #include <unordered_set>
 
 #include "utils.h"
@@ -95,6 +95,21 @@ class ExecutorState {
 
   State DrainerLeave() noexcept {
     return state_.fetch_and(~kDrainerMask, std::memory_order_acq_rel);
+  }
+
+  Result TryDrainerEnter() noexcept {
+    auto state = state_.load(std::memory_order_acquire);
+    while (!IsDrainerExist(state) &&
+           GetNumExecutors(state) < kNumExecutorsMask &&
+           !(IsBarrierExist(state) && GetNumExecutors(state) > 0)) {
+      State new_state = state | kDrainerMask;
+      if (state_.compare_exchange_weak(state, new_state,
+                                       std::memory_order_acquire,
+                                       std::memory_order_acquire)) {
+        return {state, true};
+      }
+    }
+    return {state, false};
   }
 
   Result TryDrainerLeave() noexcept {
