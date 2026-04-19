@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string_view>
 
+#include "../dispatch_group.h"
 #include "utils.h"
 
 namespace Rat {
@@ -24,21 +25,29 @@ inline void FuncExecute(const Func& func) noexcept {
 
 class DQTask {
  public:
-  DQTask(Func func, ID id, bool is_barrier, bool is_sync) noexcept
+  DQTask(Func func, std::shared_ptr<DispatchGroup> group, ID id,
+         bool is_barrier, bool is_sync) noexcept
       : func_(std::move(func)),
+        group_(std::move(group)),
         id_(id),
         is_barrier_(is_barrier),
         is_sync_(is_sync) {}
 
   DQTask(DQTask&& other) noexcept
       : func_(std::move(other.func_)),
+        group_(std::move(other.group_)),
         id_(other.id_),
         is_barrier_(other.is_barrier_),
         is_sync_(other.is_sync_) {}
 
   DQTask& operator=(DQTask&&) = delete;
 
-  void Execute() const noexcept { FuncExecute(func_); }
+  void Execute() const noexcept {
+    FuncExecute(func_);
+    if (group_) {
+      group_->Leave();
+    }
+  }
 
   [[nodiscard]] ID GetID() const noexcept { return id_; }
 
@@ -48,6 +57,9 @@ class DQTask {
 
  private:
   Func func_;
+  // we don't use weak_ptr here to reduce atomic operations and because
+  // DispatchGroup occupy little resources
+  std::shared_ptr<DispatchGroup> group_;
   ID id_;
   bool is_barrier_;
   bool is_sync_;

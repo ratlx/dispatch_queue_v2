@@ -6,6 +6,7 @@
 #include "detail/dq_base.h"
 #include "detail/dq_executor.h"
 #include "detail/utils.h"
+#include "dispatch_group.h"
 
 namespace Rat {
 

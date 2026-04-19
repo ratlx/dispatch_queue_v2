@@ -4,6 +4,7 @@
 #include <semaphore>
 #include <stdexcept>
 
+#include "../dispatch_group.h"
 #include "dq_manager.h"
 #include "dq_task.h"
 #include "mpsc_queue.h"
@@ -37,7 +38,8 @@ class DQBase : public std::enable_shared_from_this<DQBase<Executor>> {
     }
 
     auto sem = std::binary_semaphore(0);
-    auto sync_task = DQTask([&sem]() { sem.release(); }, id_, true, true);
+    auto sync_task =
+        DQTask([&sem]() { sem.release(); }, nullptr, id_, is_barrier, true);
     Submit(std::move(sync_task));
     FuncExecute([&func, &sem] {
       sem.acquire();
@@ -46,9 +48,14 @@ class DQBase : public std::enable_shared_from_this<DQBase<Executor>> {
     Notify();
   }
 
-  void Async(Func func, bool is_barrier = false) {
+  void Async(Func func, std::shared_ptr<DispatchGroup> group = nullptr,
+             bool is_barrier = false) {
     is_barrier |= is_serial_;
-    auto async_task = DQTask(std::move(func), id_, is_barrier, false);
+    if (group) {
+      group->Enter();
+    }
+    auto async_task =
+        DQTask(std::move(func), std::move(group), id_, is_barrier, false);
     Submit(std::move(async_task));
   }
 
