@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <memory>
 #include <new>
 #include <optional>
 #include <type_traits>
@@ -21,7 +22,7 @@
 namespace Rat {
 namespace detail {
 
-template <typename T>
+template <typename T, typename Allocator = std::allocator<T>>
   requires(std::is_nothrow_destructible_v<T> &&
            std::is_nothrow_move_constructible_v<T>)
 class MPSCQueue {
@@ -40,24 +41,55 @@ class MPSCQueue {
     }
   };
 
+  using NodeAlloc =
+      typename std::allocator_traits<Allocator>::template rebind_alloc<Node>;
+  using NodeAllocTraits = std::allocator_traits<NodeAlloc>;
+
+  // Empty-base optimization: stateless allocators (e.g. std::allocator) add
+  // zero overhead.
+  [[no_unique_address]] NodeAlloc alloc_;
+
   alignas(kCacheLine) std::atomic<Node*> head_;  // producers push here
   alignas(kCacheLine) Node* tail_;  // consumer reads here (single-threaded)
 
-  // Helper: allocate a node and atomically push it to head_.
+  Node* new_sentinel() {
+    Node* p = NodeAllocTraits::allocate(alloc_, 1);
+    NodeAllocTraits::construct(alloc_, p);  // Node()
+    return p;
+  }
+
+  template <typename... Args>
+  Node* new_node(Args&&... args) noexcept {
+    Node* p = NodeAllocTraits::allocate(alloc_, 1);
+    NodeAllocTraits::construct(alloc_, p, std::in_place,
+                               std::forward<Args>(args)...);
+    return p;
+  }
+
+  // Caller must have already destroyed any live T in p->data before calling.
+  void free_node(Node* p) noexcept {
+    NodeAllocTraits::destroy(alloc_, p);  // ~Node() is no-op; T already gone
+    NodeAllocTraits::deallocate(alloc_, p, 1);
+  }
+
   template <typename... Args>
   void emplace_impl(Args&&... args) noexcept {
-    Node* node = new Node(std::in_place, std::forward<Args>(args)...);
+    Node* node = new_node(std::forward<Args>(args)...);
     Node* prev = head_.exchange(node, std::memory_order_acq_rel);
     prev->next.store(node, std::memory_order_release);
   }
 
  public:
-  MPSCQueue() noexcept
-      : head_(new Node()), tail_(head_.load(std::memory_order_relaxed)) {}
+  explicit MPSCQueue(const Allocator& alloc = Allocator{}) noexcept
+      : alloc_(alloc) {
+    Node* s = new_sentinel();
+    head_.store(s, std::memory_order_relaxed);
+    tail_ = s;
+  }
 
   ~MPSCQueue() noexcept {
     while (tail_->next.load(std::memory_order_acquire)) pop();
-    delete tail_;  // delete the sentinel
+    free_node(tail_);  // sentinel: no live T
   }
 
   MPSCQueue(const MPSCQueue&) = delete;
@@ -84,7 +116,7 @@ class MPSCQueue {
 
     T val = std::move(*next->data_ptr());
     next->data_ptr()->~T();
-    delete tail_;
+    free_node(tail_);
     tail_ = next;
     return val;
   }
@@ -95,7 +127,7 @@ class MPSCQueue {
     if (!next) return;
 
     next->data_ptr()->~T();
-    delete tail_;
+    free_node(tail_);
     tail_ = next;
   }
 
