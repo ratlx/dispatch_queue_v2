@@ -103,9 +103,15 @@ class DQExecutor {
             auto task = queue->task_queue_.try_dequeue();
             drainer_state.Discharge();
 
-            executor_state.ExecutorEnter();
+            auto state = executor_state.ExecutorEnter();
             task_queue_.enqueue(std::move(*task));
             sem_.release();
+
+            // leave if the number of executors reach kNumExecutors
+            if (ExecutorState::GetNumExecutors(state) >= kNumExecutors - 1 &&
+                executor_state.TryDrainerLeave().success) {
+              return;
+            }
           }
         } else {
           // queue is empty (no task)
@@ -117,19 +123,12 @@ class DQExecutor {
             } else {
               // fail to switch off, means new tasks are in
               // set back the state
-              executor_state.ExecutorEnter();
+              executor_state.DrainerEnter();
             }
             // try to be drainer again if executor exists
-          } else if (executor_state.TryDrainerEnter().success) {
-            continue;
-          } else {
+          } else if (!executor_state.TryDrainerEnter().success) {
             return;
           }
-        }
-
-        // leave if the number of executo  rs reach kNumExecutors
-        if (executor_state.TryDrainerLeave().success) {
-          return;
         }
       }
     } else {
