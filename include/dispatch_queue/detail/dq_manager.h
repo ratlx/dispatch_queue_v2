@@ -37,7 +37,7 @@ class DrainerState {
 
   Result TrySwitchOn() noexcept {
     auto state = state_.load(std::memory_order_acquire);
-    while (!IsSwitchOn(state) && GetNumTasks(state) != 0) {
+    while (!IsSwitchOn(state) && GetNumTasks(state) > 0) {
       if (state_.compare_exchange_weak(state, state | kSwitchBit,
                                        std::memory_order_acquire,
                                        std::memory_order_acquire)) {
@@ -49,7 +49,7 @@ class DrainerState {
 
   Result TrySwitchOff() noexcept {
     auto state = state_.load(std::memory_order_acquire);
-    while (GetNumTasks(state) == 0) {
+    while (GetNumTasks(state) <= 0) {
       if (state_.compare_exchange_weak(state, state & ~kSwitchBit,
                                        std::memory_order_release,
                                        std::memory_order_acquire)) {
@@ -70,7 +70,7 @@ class DrainerState {
 
   static bool IsSwitchOn(State state) noexcept { return state & kSwitchBit; }
   static State GetNumTasks(State state) noexcept {
-    return (state & kNumTasksMask) >> 1;
+    return (state & kNumTasksMask) / 2;
   }
 
  private:
